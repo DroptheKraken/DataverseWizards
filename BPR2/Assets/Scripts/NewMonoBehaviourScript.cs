@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using UnityEngine;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -38,8 +40,9 @@ public class VRDataListener : MonoBehaviour
     }
 
     private async Task ProcessClient(TcpClient client)
-    {NetworkStream stream = client.GetStream();
-        byte[] data = new byte[256];
+    {
+        NetworkStream stream = client.GetStream();
+        byte[] data = new byte[1024];
         int bytes = await stream.ReadAsync(data, 0, data.Length);
         string receivedData = Encoding.ASCII.GetString(data, 0, bytes);
         Debug.Log($"Received data: {receivedData}");
@@ -58,9 +61,9 @@ public class VRDataListener : MonoBehaviour
                 elementSpawner.SpawnElementAtCoordinates(element, storeData.dimensions, wallDistanceX, wallDistanceZ);
             }
         }
-        else
+        catch (JsonException ex)
         {
-            Debug.LogWarning("Received data does not match 'spawn': " + receivedData);
+            Debug.LogError("Failed to parse JSON: " + ex.Message);
         }
 
         client.Close();
