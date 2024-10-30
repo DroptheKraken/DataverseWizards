@@ -3,32 +3,36 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 public class VRDataListener : MonoBehaviour
 {
     private TcpListener server;
-    public GameObject Blaser; // Reference to the cube prefab
+
+    public GameObject Cube;  // Square
+    public GameObject Cylinder;  // Polygon (Cylinder)
+    
+    private WallBuilder wallBuilder;
+    private ElementSpawner elementSpawner;
 
     async void Start()
     {
-        // Start the server to listen for connections
+        wallBuilder = new WallBuilder();
+        elementSpawner = new ElementSpawner(Cube, Cylinder);
+
         await StartListener();
     }
 
     private async Task StartListener()
     {
-        // Set up a TCP listener on port 13000
         server = new TcpListener(IPAddress.Any, 13000);
         server.Start();
         Debug.Log("Server started. Listening for connections...");
 
         while (true)
         {
-            // Accept a client connection asynchronously
             TcpClient client = await server.AcceptTcpClientAsync();
             Debug.Log("Client connected.");
-
-            // Process the client in a separate task
             _ = ProcessClient(client);
         }
     }
@@ -40,17 +44,18 @@ public class VRDataListener : MonoBehaviour
         string receivedData = Encoding.ASCII.GetString(data, 0, bytes);
         Debug.Log($"Received data: {receivedData}");
 
-        // If the message received is "spawn", instantiate a cube in VR
-        if (receivedData.Trim() == "spawn")
+        try
         {
-            if (Blaser != null)
+            // Deserialize into the StoreData class
+            var storeData = JsonConvert.DeserializeObject<StoreData>(receivedData);
+            
+            // Build walls and get distances
+            var (wallDistanceX, wallDistanceZ) = wallBuilder.BuildStore(storeData.dimensions);
+            
+            // Iterate through element positions and spawn them
+            foreach (var element in storeData.ElementPositions)
             {
-                Debug.Log("Spawning prefab...");
-                Instantiate(Blaser, new Vector3(0, 1, 0), Quaternion.identity);
-            }
-            else
-            {
-                Debug.LogError("Blaser prefab is not assigned.");
+                elementSpawner.SpawnElementAtCoordinates(element, storeData.dimensions, wallDistanceX, wallDistanceZ);
             }
         }
         else
@@ -63,7 +68,29 @@ public class VRDataListener : MonoBehaviour
 
     void OnDestroy()
     {
-        // Stop the server when the object is destroyed
         server.Stop();
     }
+}
+
+[System.Serializable]
+public class StoreData
+{
+    public Dimensions dimensions { get; set; }
+    public List<DesignElement> ElementPositions { get; set; }
+}
+
+[System.Serializable]
+public class Dimensions
+{
+    public float X { get; set; }
+    public float Z { get; set; }
+    public float Y { get; set; }
+}
+
+[System.Serializable]
+public class DesignElement
+{
+    public string ElementName { get; set; }
+    public float X { get; set; }
+    public float Z { get; set; }
 }
